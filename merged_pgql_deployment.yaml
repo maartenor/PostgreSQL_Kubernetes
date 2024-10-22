@@ -1,0 +1,164 @@
+# https://www.digitalocean.com/community/tutorials/how-to-deploy-postgres-to-kubernetes-cluster
+# create namespace first
+# storing database data to NFS Provider storage instead of node storage
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: postgresql-dev
+  labels:
+    app: postgres
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-secret
+  namespace: postgresql-dev
+  labels:
+    app: postgres
+data:
+  POSTGRES_DB: ps_db_dev
+  POSTGRES_USER: ps_user
+  POSTGRES_PASSWORD: S#=urePassword
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: postgres-volume-dev
+  namespace: postgresql-dev
+  labels:
+    app: postgres
+spec:
+  storageClassName: nfs-client-extdsk
+  capacity:
+    storage: 2Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain # Recycle
+  nfs:  # Specify the NFS volume type
+    #path: /mnt/extdsk/cluster_data/postgresql  # Path on your NFS server
+    path: /mnt/exthdd/cluster_data/postgresql  # Path on your NFS server
+    server: 192.168.0.62  # Your NFS server IP or hostname
+    readOnly: false  # Set to true if you want read-only access
+  # hostPath:
+  #   path: /mnt/extdsk/cluster_data/postgresql  # path: /data/postgresql # For saving postgresql data to nfs-server rpiCM4-2
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-volume-claim-dev
+  namespace: postgresql-dev
+  labels:
+    app: postgres
+spec:
+  storageClassName: nfs-client-extdsk # manual # For saving postgresql data to nfs-server rpiCM4-2, same as storageClassName in PV yaml
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# https://www.digitalocean.com/community/tutorials/how-to-deploy-postgres-to-kubernetes-cluster
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-dev
+  namespace: postgresql-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      initContainers:
+        - name: init-postgres
+          image: postgres:14
+          securityContext:
+            runAsUser: 107 # 0 # Start as root to change ownership (for NFS share)
+            runAsGroup: 112 # 0
+            allowPrivilegeEscalation: true
+          command:
+            - bash
+            - "-c"
+            - |
+              #!/bin/bash
+              set -e
+              # Start with empty directory, to fix "PostgreSQL Database directory appears to contain a database; Skipping initialization"
+              ls -A /var/lib/postgresql/data || (initdb /var/lib/postgresql/data && cp -R /var/lib/postgresql/empty/* /var/lib/postgresql/data)
+              echo""
+              echo "Starting initContainer - checking /var/lib/postgresql/data directory"
+              # Log the contents of the data directory for debugging purposes
+              echo "checking /var/lib/postgresql/empty directory"
+              ls -al /var/lib/postgresql/empty
+              echo "checking /var/lib/postgresql/data directory"
+              ls -al /var/lib/postgresql/data
+              echo ""
+              echo "uid:groupid = " $(id -u postgres):$(id -g postgres)
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: postgresdata
+            - mountPath: /var/lib/postgresql/empty
+              name: emptydir
+      containers:
+        - name: postgres
+          image: postgres:14
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 107 # 0 # Start as root to change ownership (for NFS share)
+            runAsGroup: 112 # 0
+            allowPrivilegeEscalation: true
+          lifecycle:
+            postStart:
+              exec:
+                # command: ["/bin/sh","-c","sleep 40 && PGPASSWORD=$POSTGRES_PASSWORD psql -w -d $POSTGRES_DB -U $POSTGRES_USER -c 'CREATE TABLE IF NOT EXISTS users (userid SERIAL PRIMARY KEY,username TEXT,password TEXT,token TEXT,type TEXT);'"]
+                command:
+                  - bash
+                  - "-c"
+                  - | 
+                    # Debug logging
+                    ls -al /var/lib/postgresql
+                    echo ""
+                    echo "uid:groupid = " $(id -u postgres):$(id -g postgres)
+                    # Fix remove NFS permission (default: rpiCM4-2)
+                    # chown -R 999:999 /var/lib/postgresql/data && chmod -R 700 /var/lib/postgresql/data
+                    chown -R $(id -u postgres):$(id -g postgres) /var/lib/postgresql/data && chmod -R 700 /var/lib/postgresql/data
+                    PGPASSWORD=$POSTGRES_PASSWORD psql -w -d $POSTGRES_DB -U $POSTGRES_USER -c 'CREATE TABLE IF NOT EXISTS users (userid SERIAL PRIMARY KEY,username TEXT,password TEXT,token TEXT,type TEXT);'
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - configMapRef:
+                name: postgres-secret
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: postgresdata
+      volumes:
+        - name: postgresdata
+          persistentVolumeClaim:
+            claimName: postgres-volume-claim-dev
+        - name: emptydir
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: postgresql-dev
+  labels:
+    app: postgres
+spec:
+  type: LoadBalancer #NodePort
+  ports:
+    - port: 5432 #      nodePort: 30001 
+      targetPort: 5432
+  selector:
+    app: postgres

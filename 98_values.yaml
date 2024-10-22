@@ -1,0 +1,22 @@
+# values.yaml
+database:
+  user: admin
+  password: secret
+  name: postgresdb
+
+
+##Example usage:
+
+# # deployment.yaml (Helm template)
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+  # name: {{ .Values.database.name }}
+# spec:
+  # containers:
+    # - name: postgres
+      # env:
+        # - name: POSTGRES_USER
+          # value: {{ .Values.database.user }}
+        # - name: POSTGRES_PASSWORD
+          # value: {{ .Values.database.password }}
