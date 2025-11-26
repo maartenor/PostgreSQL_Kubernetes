@@ -1,10 +1,20 @@
 # https://www.digitalocean.com/community/tutorials/how-to-deploy-postgres-to-kubernetes-cluster
 # create namespace first
+<<<<<<< HEAD
+=======
+# storing database data to NFS Provider storage instead of node storage
+>>>>>>> b76ee8d2340c768ea2603f63d871135a68310ab5
 
 apiVersion: v1
 kind: Namespace
 metadata:
+<<<<<<< HEAD
   name: postgresql
+=======
+  name: postgresql-dev
+  labels:
+    app: postgres
+>>>>>>> b76ee8d2340c768ea2603f63d871135a68310ab5
 
 ---
 
@@ -12,7 +22,11 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: postgres-secret
+<<<<<<< HEAD
   namespace: postgresql
+=======
+  namespace: postgresql-dev
+>>>>>>> b76ee8d2340c768ea2603f63d871135a68310ab5
   labels:
     app: postgres
 data:
@@ -24,6 +38,7 @@ data:
 apiVersion: v1
 kind: PersistentVolume
 metadata:
+<<<<<<< HEAD
   name: postgres-volume
   namespace: postgresql
   labels:
@@ -31,24 +46,51 @@ metadata:
     app: postgres
 spec:
   storageClassName: manual
+=======
+  name: postgres-volume-dev
+  namespace: postgresql-dev
+  labels:
+    app: postgres
+spec:
+  storageClassName: nfs-client-extdsk
+>>>>>>> b76ee8d2340c768ea2603f63d871135a68310ab5
   capacity:
     storage: 2Gi
   accessModes:
     - ReadWriteMany
   persistentVolumeReclaimPolicy: Retain # Recycle
+<<<<<<< HEAD
   hostPath:
     path: /data/postgresql
+=======
+  nfs:  # Specify the NFS volume type
+    #path: /mnt/extdsk/cluster_data/postgresql  # Path on your NFS server
+    path: /mnt/exthdd/cluster_data/postgresql  # Path on your NFS server
+    server: 192.168.0.62  # Your NFS server IP or hostname
+    readOnly: false  # Set to true if you want read-only access
+  # hostPath:
+  #   path: /mnt/extdsk/cluster_data/postgresql  # path: /data/postgresql # For saving postgresql data to nfs-server rpiCM4-2
+>>>>>>> b76ee8d2340c768ea2603f63d871135a68310ab5
 
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+<<<<<<< HEAD
   name: postgres-volume-claim
   namespace: postgresql
   labels:
     app: postgres
 spec:
   storageClassName: manual
+=======
+  name: postgres-volume-claim-dev
+  namespace: postgresql-dev
+  labels:
+    app: postgres
+spec:
+  storageClassName: nfs-client-extdsk # manual # For saving postgresql data to nfs-server rpiCM4-2, same as storageClassName in PV yaml
+>>>>>>> b76ee8d2340c768ea2603f63d871135a68310ab5
   accessModes:
     - ReadWriteMany
   resources:
@@ -60,10 +102,17 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+<<<<<<< HEAD
   name: postgres
   namespace: postgresql
 spec:
   replicas: 3
+=======
+  name: postgres-dev
+  namespace: postgresql-dev
+spec:
+  replicas: 1
+>>>>>>> b76ee8d2340c768ea2603f63d871135a68310ab5
   selector:
     matchLabels:
       app: postgres
@@ -75,13 +124,34 @@ spec:
       initContainers:
         - name: init-postgres
           image: postgres:14
+<<<<<<< HEAD
+=======
+          securityContext:
+            runAsUser: 107 # 0 # Start as root to change ownership (for NFS share)
+            runAsGroup: 112 # 0
+            allowPrivilegeEscalation: true
+>>>>>>> b76ee8d2340c768ea2603f63d871135a68310ab5
           command:
             - bash
             - "-c"
             - |
               #!/bin/bash
               set -e
+<<<<<<< HEAD
               ls -A /var/lib/postgresql/data || (initdb /var/lib/postgresql/data && cp -R /var/lib/postgresql/empty/* /var/lib/postgresql/data)
+=======
+              # Start with empty directory, to fix "PostgreSQL Database directory appears to contain a database; Skipping initialization"
+              ls -A /var/lib/postgresql/data || (initdb /var/lib/postgresql/data && cp -R /var/lib/postgresql/empty/* /var/lib/postgresql/data)
+              echo""
+              echo "Starting initContainer - checking /var/lib/postgresql/data directory"
+              # Log the contents of the data directory for debugging purposes
+              echo "checking /var/lib/postgresql/empty directory"
+              ls -al /var/lib/postgresql/empty
+              echo "checking /var/lib/postgresql/data directory"
+              ls -al /var/lib/postgresql/data
+              echo ""
+              echo "uid:groupid = " $(id -u postgres):$(id -g postgres)
+>>>>>>> b76ee8d2340c768ea2603f63d871135a68310ab5
           volumeMounts:
             - mountPath: /var/lib/postgresql/data
               name: postgresdata
@@ -91,10 +161,33 @@ spec:
         - name: postgres
           image: postgres:14
           imagePullPolicy: IfNotPresent
+<<<<<<< HEAD
           lifecycle:
             postStart:
               exec:
                 command: ["/bin/sh","-c","sleep 20 && PGPASSWORD=$POSTGRES_PASSWORD psql -w -d $POSTGRES_DB -U $POSTGRES_USER -c 'CREATE TABLE IF NOT EXISTS users (userid SERIAL PRIMARY KEY,username TEXT,password TEXT,token TEXT,type TEXT);'"]
+=======
+          securityContext:
+            runAsUser: 107 # 0 # Start as root to change ownership (for NFS share)
+            runAsGroup: 112 # 0
+            allowPrivilegeEscalation: true
+          lifecycle:
+            postStart:
+              exec:
+                # command: ["/bin/sh","-c","sleep 40 && PGPASSWORD=$POSTGRES_PASSWORD psql -w -d $POSTGRES_DB -U $POSTGRES_USER -c 'CREATE TABLE IF NOT EXISTS users (userid SERIAL PRIMARY KEY,username TEXT,password TEXT,token TEXT,type TEXT);'"]
+                command:
+                  - bash
+                  - "-c"
+                  - | 
+                    # Debug logging
+                    ls -al /var/lib/postgresql
+                    echo ""
+                    echo "uid:groupid = " $(id -u postgres):$(id -g postgres)
+                    # Fix remove NFS permission (default: rpiCM4-2)
+                    # chown -R 999:999 /var/lib/postgresql/data && chmod -R 700 /var/lib/postgresql/data
+                    chown -R $(id -u postgres):$(id -g postgres) /var/lib/postgresql/data && chmod -R 700 /var/lib/postgresql/data
+                    PGPASSWORD=$POSTGRES_PASSWORD psql -w -d $POSTGRES_DB -U $POSTGRES_USER -c 'CREATE TABLE IF NOT EXISTS users (userid SERIAL PRIMARY KEY,username TEXT,password TEXT,token TEXT,type TEXT);'
+>>>>>>> b76ee8d2340c768ea2603f63d871135a68310ab5
           ports:
             - containerPort: 5432
           envFrom:
@@ -106,7 +199,11 @@ spec:
       volumes:
         - name: postgresdata
           persistentVolumeClaim:
+<<<<<<< HEAD
             claimName: postgres-volume-claim
+=======
+            claimName: postgres-volume-claim-dev
+>>>>>>> b76ee8d2340c768ea2603f63d871135a68310ab5
         - name: emptydir
           emptyDir: {}
 
@@ -115,7 +212,11 @@ apiVersion: v1
 kind: Service
 metadata:
   name: postgres
+<<<<<<< HEAD
   namespace: postgresql
+=======
+  namespace: postgresql-dev
+>>>>>>> b76ee8d2340c768ea2603f63d871135a68310ab5
   labels:
     app: postgres
 spec:

@@ -1,0 +1,56 @@
+# kubectl apply -f postgresql-pv.yaml
+# kubectl apply -f postgres-secret.yaml
+# kubectl apply -f postgres-deployment.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-deployment
+  namespace: postgres-ns
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      volumes:
+      - name: postgres-pv
+        persistentVolumeClaim:
+          claimName: postgresql-pvc 
+      containers:
+        - name: postgres
+          image: postgres:latest
+          env:
+            - name: chain-between-db-001
+              value: chain-between-postgres-001
+            - name: POSTGRES_USER
+              value: ingest
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: password
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: postgres-pv
+              mountPath: /var/lib/postgresql/data
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: postgres-ns
+spec:
+  selector:
+    app: postgres
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
