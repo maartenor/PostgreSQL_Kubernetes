@@ -1,22 +1,73 @@
-# values.yaml
-database:
-  user: ps_user
-  password: SecurePassword
-  name: ps_db_dev
+# Default values for PostgreSQL deployment
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
 
+# Namespace configuration
+namespace:
+  name: postgresql
+  labels:
+    app: postgres
 
-##Example usage:
+# ConfigMap configuration for PostgreSQL credentials and settings
+configMap:
+  name: postgres-secret
+  data:
+    POSTGRES_DB: ps_db_dev
+    POSTGRES_USER: ps_user
+    POSTGRES_PASSWORD: SecurePassword
 
-# # deployment.yaml (Helm template)
-# apiVersion: apps/v1
-# kind: Deployment
-# metadata:
-  # name: {{ .Values.database.name }}
-# spec:
-  # containers:
-    # - name: postgres
-      # env:
-        # - name: POSTGRES_USER
-          # value: {{ .Values.database.user }}
-        # - name: POSTGRES_PASSWORD
-          # value: {{ .Values.database.password }}
+# PersistentVolume configuration
+persistentVolume:
+  name: postgres-volume
+  storageClassName: manual
+  capacity: 2Gi
+  accessModes:
+    - ReadWriteMany
+  reclaimPolicy: Retain  # Options: Retain, Recycle, Delete
+  hostPath: /data/postgresql  # Path on the node where data is stored
+
+# PersistentVolumeClaim configuration
+persistentVolumeClaim:
+  name: postgres-volume-claim
+  storageClassName: manual
+  accessModes:
+    - ReadWriteMany
+  storage: 1Gi
+
+# Deployment configuration
+deployment:
+  name: postgres
+  replicas: 1
+
+  # Init container configuration
+  initContainer:
+    name: init-postgres
+    image: postgres:14
+
+  # Main container configuration
+  container:
+    name: postgres
+    image: postgres:14
+    imagePullPolicy: IfNotPresent
+    port: 5432
+
+    # Lifecycle postStart command - creates users table after DB starts
+    postStartDelay: 45  # seconds to wait before running postStart command
+
+  # Node selector to pin deployment to specific node
+  nodeSelector:
+    node-type-2: rpiCM4
+    hostname: rpicm4-2  # This will be converted to kubernetes.io/hostname
+
+# Service configuration
+service:
+  name: postgres
+  type: LoadBalancer
+  loadBalancerIP: 192.168.179.206
+  port: 5432
+  targetPort: 5432
+
+# Resource labels
+labels:
+  app: postgres
+  type: local
