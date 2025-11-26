@@ -1,3 +1,4 @@
+-- Example database and tables creation script
 CREATE TABLE IF NOT EXISTS public.created_table_2 (
 	column1 varchar NULL,
 	column2 varchar NULL
