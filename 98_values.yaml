@@ -1,8 +1,8 @@
 # values.yaml
 database:
-  user: admin
-  password: secret
-  name: postgresdb
+  user: ps_user
+  password: SecurePassword
+  name: ps_db_dev
 
 
 ##Example usage:
