@@ -42,7 +42,8 @@ spec:
     - ReadWriteMany
   persistentVolumeReclaimPolicy: Retain # Recycle
   hostPath:
-    path: /data/postgresql  # saving on local node's 
+    path: /data/postgresql  # saving on local node's  
+    # as set by Deployment spec.template.spec.nodeSelector 
 
 ---
 apiVersion: v1
@@ -129,6 +130,7 @@ metadata:
     app: postgres
 spec:
   type: LoadBalancer
+  loadBalancerIP: 192.168.179.206
   ports:
     - port: 5432
       targetPort: 5432

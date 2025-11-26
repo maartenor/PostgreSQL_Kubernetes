@@ -1,0 +1,55 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: postgresql
+  namespace: argocd
+  # Finalizer to ensure proper cleanup
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  # The project the application belongs to
+  project: default
+
+  # Source of the application manifests
+  source:
+    repoURL: https://github.com/maartenor/PostgreSQL_Kubernetes
+    targetRevision: main  # or specify a specific branch/tag/commit
+    path: .  # root directory - change if manifests are in a subdirectory
+
+    # Optional: specify the exact file if needed
+    # directory:
+    #   include: '10_working_postgres.yaml'
+
+  # Destination cluster and namespace
+  destination:
+    server: https://kubernetes.default.svc  # in-cluster deployment
+    namespace: postgresql
+
+  # Sync policy
+  syncPolicy:
+    # Automated sync options
+    automated:
+      prune: true  # automatically delete resources that are no longer defined in Git
+      selfHeal: true  # automatically sync when cluster state deviates from Git
+      allowEmpty: false  # don't sync if repo is empty
+
+    # Sync options
+    syncOptions:
+      - CreateNamespace=true  # automatically create namespace if it doesn't exist
+      - PrunePropagationPolicy=foreground  # deletion propagation policy
+      - PruneLast=true  # prune resources last
+
+    # Retry options for failed syncs
+    retry:
+      limit: 5  # number of retry attempts
+      backoff:
+        duration: 5s  # initial delay between retries
+        factor: 2  # multiplication factor for subsequent retries
+        maxDuration: 3m  # maximum delay between retries
+
+  # Health assessment and ignoring specific differences
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas  # ignore replica count differences
