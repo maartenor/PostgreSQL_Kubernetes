@@ -12,6 +12,12 @@ To deploy the configuration and start the PostgreSQL database and services, run:
 Deploy on kubernetes cluster 
 `kubectl apply -f ./10_working_postgres.yaml`
 
+Deploy to ArgoCD via yaml files
+`kubectl apply -f postgresql_argocd_application.yaml`
+
+Deploy via Helm Chart to ArgoCD
+`kubectl apply -f argocd-helm-application.yaml`
+
 ### [Improvement] Creating password to add to Secret
 ```bash
 # Linux

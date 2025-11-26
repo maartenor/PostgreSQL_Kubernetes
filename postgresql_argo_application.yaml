@@ -1,3 +1,4 @@
+# The YAML variant, not a Helm chart variant of the ArgoCD Application for PostgreSQL
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
