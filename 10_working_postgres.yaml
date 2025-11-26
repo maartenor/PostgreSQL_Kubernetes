@@ -77,6 +77,10 @@ spec:
     metadata:
       labels:
         app: postgres
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9187"
+        prometheus.io/path: "/metrics"
     spec:
       # initContainer needed to empty /var/lib/postgresql/data so server starts
       initContainers:
@@ -110,6 +114,30 @@ spec:
           volumeMounts:
             - mountPath: /var/lib/postgresql/data
               name: postgresdata
+        # PostgreSQL Exporter sidecar for Prometheus metrics
+        - name: postgres-exporter
+          image: prometheuscommunity/postgres-exporter:latest
+          ports:
+            - containerPort: 9187
+              name: metrics
+          env:
+            - name: DATA_SOURCE_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_USER
+            - name: DATA_SOURCE_PASS
+              valueFrom:
+                configMapKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: DATA_SOURCE_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_DB
+            - name: DATA_SOURCE_NAME
+              value: "postgresql://$(DATA_SOURCE_USER):$(DATA_SOURCE_PASS)@localhost:5432/$(DATA_SOURCE_DB)?sslmode=disable"
       volumes:
         - name: postgresdata
           persistentVolumeClaim:

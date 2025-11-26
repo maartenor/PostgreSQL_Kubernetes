@@ -67,6 +67,14 @@ service:
   port: 5432
   targetPort: 5432
 
+# PostgreSQL Exporter for Prometheus (sidecar container)
+# Prometheus scrapes metrics via pod annotations
+exporter:
+  enabled: true
+  name: postgres-exporter
+  image: prometheuscommunity/postgres-exporter:latest
+  port: 9187
+
 # Resource labels
 labels:
   app: postgres
